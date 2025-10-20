@@ -21,17 +21,10 @@ PLATFORMS: list[Platform] = [Platform.CALENDAR, Platform.TODO]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up todoist from a config entry."""
-    _LOGGER.debug("Starting async_setup_entry")
 
-    _LOGGER.debug("Calling async_get_api")
     api = await async_get_api(hass, entry)
-    _LOGGER.debug("async_get_api finished, api object: %s", api)
-
-    _LOGGER.debug("Creating TodoistDataUpdateCoordinator")
     coordinator = TodoistDataUpdateCoordinator(hass, _LOGGER, entry, api)
-    _LOGGER.debug("Calling async_config_entry_first_refresh")
     await coordinator.async_config_entry_first_refresh()
-    _LOGGER.debug("async_config_entry_first_refresh finished")
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
