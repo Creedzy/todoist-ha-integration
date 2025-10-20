@@ -1,60 +1,78 @@
 """DataUpdateCoordinator for the Todoist component."""
 
+import asyncio
 from datetime import timedelta
 import logging
 
 from todoist_api_python.api_async import TodoistAPIAsync
-from todoist_api_python.models import Label, Project, Section, Task
+from todoist_api_python.models import Task
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from .const import DOMAIN
+from .types import TodoistData
 
-class TodoistCoordinator(DataUpdateCoordinator[list[Task]]):
-    """Coordinator for updating task data from Todoist."""
+
+class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
+    """Coordinator for updating data from Todoist."""
 
     def __init__(
         self,
         hass: HomeAssistant,
         logger: logging.Logger,
-        entry: ConfigEntry | None,
-        update_interval: timedelta,
+        entry: ConfigEntry,
         api: TodoistAPIAsync,
-        token: str,
     ) -> None:
         """Initialize the Todoist coordinator."""
         super().__init__(
             hass,
             logger,
-            config_entry=entry,
-            name="Todoist",
-            update_interval=update_interval,
+            name=DOMAIN,
+            update_interval=timedelta(minutes=15),
         )
         self.api = api
-        self._projects: list[Project] | None = None
-        self._labels: list[Label] | None = None
-        self.token = token
+        self.entry = entry
 
-    async def _async_update_data(self) -> list[Task]:
-        """Fetch tasks from the Todoist API."""
+    async def _async_update_data(self) -> TodoistData:
+        """Fetch data from the Todoist API."""
         try:
-            return await self.api.get_tasks()
+            tasks, projects, labels = await asyncio.gather(
+                self.api.get_tasks(),
+                self.api.get_projects(),
+                self.api.get_labels(),
+            )
+            return TodoistData(tasks=tasks, projects=projects, labels=labels)
         except Exception as err:
             raise UpdateFailed(f"Error communicating with API: {err}") from err
 
-    async def async_get_projects(self) -> list[Project]:
-        """Return todoist projects fetched at most once."""
-        if self._projects is None:
-            self._projects = await self.api.get_projects()
-        return self._projects
+    async def async_add_task(self, data: dict) -> Task:
+        """Add a task."""
+        task = await self.api.add_task(**data)
+        await self.async_refresh()
+        return task
 
-    async def async_get_sections(self, project_id: str) -> list[Section]:
-        """Return todoist sections for a given project ID."""
-        return await self.api.get_sections(project_id=project_id)
+    async def async_update_task(self, task_id: str, data: dict) -> bool:
+        """Update a task."""
+        result = await self.api.update_task(task_id, **data)
+        await self.async_refresh()
+        return result
 
-    async def async_get_labels(self) -> list[Label]:
-        """Return todoist labels fetched at most once."""
-        if self._labels is None:
-            self._labels = await self.api.get_labels()
-        return self._labels
+    async def async_close_task(self, task_id: str) -> bool:
+        """Close a task."""
+        result = await self.api.close_task(task_id)
+        await self.async_refresh()
+        return result
+
+    async def async_reopen_task(self, task_id: str) -> bool:
+        """Reopen a task."""
+        result = await self.api.reopen_task(task_id)
+        await self.async_refresh()
+        return result
+
+    async def async_delete_task(self, task_id: str) -> bool:
+        """Delete a task."""
+        result = await self.api.delete_task(task_id)
+        await self.async_refresh()
+        return result

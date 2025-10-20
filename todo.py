@@ -1,10 +1,7 @@
 """A todo platform for Todoist."""
-
 import asyncio
 import datetime
 from typing import Any, cast
-
-from todoist_api_python.models import Task
 
 from homeassistant.components.todo import (
     TodoItem,
@@ -14,54 +11,51 @@ from homeassistant.components.todo import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from todoist_api_python.models import Task
+
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
-from .coordinator import TodoistCoordinator
+from .coordinator import TodoistDataUpdateCoordinator
+from .types import TodoistData
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddConfigEntryEntitiesCallback,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the Todoist todo platform config entry."""
-    coordinator: TodoistCoordinator = hass.data[DOMAIN][entry.entry_id]
-    projects = await coordinator.async_get_projects()
+    coordinator: TodoistDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    projects = coordinator.data.projects
     async_add_entities(
-        TodoistTodoListEntity(coordinator, entry.entry_id, project.id, project.name)
+        TodoistTodoListEntity(coordinator, project.id, project.name)
         for project in projects
     )
 
 
 def _task_api_data(item: TodoItem, api_data: Task | None = None) -> dict[str, Any]:
     """Convert a TodoItem to the set of add or update arguments."""
-    item_data: dict[str, Any] = {
-        "content": item.summary,
-        # Description needs to be empty string to be cleared
-        "description": item.description or "",
-    }
-    if due := item.due:
-        if isinstance(due, datetime.datetime):
-            item_data["due_datetime"] = due.isoformat()
+    item_data: dict[str, Any] = {"content": item.summary}
+    if item.description is not None:
+        item_data["description"] = item.description
+    if item.due is not None:
+        if isinstance(item.due, datetime.datetime):
+            item_data["due_datetime"] = item.due.isoformat()
         else:
-            item_data["due_date"] = due.isoformat()
-        # In order to not lose any recurrence metadata for the task, we need to
-        # ensure that we send the `due_string` param if the task has it set.
-        # NOTE: It's ok to send stale data for non-recurring tasks. Any provided
-        # date/datetime will override this string.
+            item_data["due_date"] = item.due.isoformat()
         if api_data and api_data.due:
             item_data["due_string"] = api_data.due.string
     else:
-        # Special flag "no date" clears the due date/datetime.
-        # See https://developer.todoist.com/rest/v2/#update-a-task for more.
         item_data["due_string"] = "no date"
     return item_data
 
 
-class TodoistTodoListEntity(CoordinatorEntity[TodoistCoordinator], TodoListEntity):
+class TodoistTodoListEntity(
+    CoordinatorEntity[TodoistDataUpdateCoordinator], TodoListEntity
+):
     """A Todoist TodoListEntity."""
 
     _attr_supported_features = (
@@ -75,16 +69,22 @@ class TodoistTodoListEntity(CoordinatorEntity[TodoistCoordinator], TodoListEntit
 
     def __init__(
         self,
-        coordinator: TodoistCoordinator,
-        config_entry_id: str,
+        coordinator: TodoistDataUpdateCoordinator,
         project_id: str,
         project_name: str,
     ) -> None:
         """Initialize TodoistTodoListEntity."""
         super().__init__(coordinator=coordinator)
         self._project_id = project_id
-        self._attr_unique_id = f"{config_entry_id}-{project_id}"
+        self._attr_unique_id = f"{coordinator.entry.entry_id}-{project_id}"
         self._attr_name = project_name
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the state attributes."""
+        if not self.coordinator.data:
+            return {}
+        return {"tasks": [task.to_dict() for task in self.coordinator.data.tasks]}
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -93,31 +93,31 @@ class TodoistTodoListEntity(CoordinatorEntity[TodoistCoordinator], TodoListEntit
             self._attr_todo_items = None
         else:
             items = []
-            for task in self.coordinator.data:
+            for task in self.coordinator.data.tasks:
                 if task.project_id != self._project_id:
                     continue
                 if task.parent_id is not None:
-                    # Filter out sub-tasks until they are supported by the UI.
                     continue
-                if task.is_completed:
-                    status = TodoItemStatus.COMPLETED
-                else:
-                    status = TodoItemStatus.NEEDS_ACTION
+                status = (
+                    TodoItemStatus.COMPLETED
+                    if task.is_completed
+                    else TodoItemStatus.NEEDS_ACTION
+                )
                 due: datetime.date | datetime.datetime | None = None
-                if task_due := task.due:
-                    if task_due.datetime:
+                if task.due:
+                    if task.due.datetime:
                         due = dt_util.as_local(
-                            datetime.datetime.fromisoformat(task_due.datetime)
+                            datetime.datetime.fromisoformat(task.due.datetime)
                         )
-                    elif task_due.date:
-                        due = datetime.date.fromisoformat(task_due.date)
+                    else:
+                        due = datetime.date.fromisoformat(task.due.date)
                 items.append(
                     TodoItem(
                         summary=task.content,
                         uid=task.id,
                         status=status,
                         due=due,
-                        description=task.description or None,  # Don't use empty string
+                        description=task.description,
                     )
                 )
             self._attr_todo_items = items
@@ -125,41 +125,22 @@ class TodoistTodoListEntity(CoordinatorEntity[TodoistCoordinator], TodoListEntit
 
     async def async_create_todo_item(self, item: TodoItem) -> None:
         """Create a To-do item."""
-        if item.status != TodoItemStatus.NEEDS_ACTION:
-            raise ValueError("Only active tasks may be created.")
-        await self.coordinator.api.add_task(
-            **_task_api_data(item),
-            project_id=self._project_id,
+        await self.coordinator.async_add_task(
+            {**_task_api_data(item), "project_id": self._project_id}
         )
-        await self.coordinator.async_refresh()
 
     async def async_update_todo_item(self, item: TodoItem) -> None:
         """Update a To-do item."""
         uid: str = cast(str, item.uid)
-        api_data = next((d for d in self.coordinator.data if d.id == uid), None)
-        if update_data := _task_api_data(item, api_data):
-            await self.coordinator.api.update_task(task_id=uid, **update_data)
+        await self.coordinator.async_update_task(uid, _task_api_data(item))
         if item.status is not None:
-            # Only update status if changed
-            for existing_item in self._attr_todo_items or ():
-                if existing_item.uid != item.uid:
-                    continue
-
-                if item.status != existing_item.status:
-                    if item.status == TodoItemStatus.COMPLETED:
-                        await self.coordinator.api.close_task(task_id=uid)
-                    else:
-                        await self.coordinator.api.reopen_task(task_id=uid)
-        await self.coordinator.async_refresh()
+            if item.status == TodoItemStatus.COMPLETED:
+                await self.coordinator.async_close_task(uid)
+            else:
+                await self.coordinator.async_reopen_task(uid)
 
     async def async_delete_todo_items(self, uids: list[str]) -> None:
         """Delete a To-do item."""
         await asyncio.gather(
-            *[self.coordinator.api.delete_task(task_id=uid) for uid in uids]
+            *[self.coordinator.async_delete_task(uid) for uid in uids]
         )
-        await self.coordinator.async_refresh()
-
-    async def async_added_to_hass(self) -> None:
-        """When entity is added to hass update state from existing coordinator data."""
-        await super().async_added_to_hass()
-        self._handle_coordinator_update()
