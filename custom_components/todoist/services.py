@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import voluptuous as vol
 
-from homeassistant.core import HomeAssistant, ServiceCall, anext
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import DOMAIN, SERVICE_GET_TASK, SERVICE_NEW_TASK, SERVICE_UPDATE_TASK
@@ -15,16 +15,12 @@ def async_register_services(hass: HomeAssistant) -> None:
 
     async def async_new_task(call: ServiceCall) -> None:
         """Create a new task."""
-        coordinator: TodoistDataUpdateCoordinator = await anext(
-            c for c in hass.data[DOMAIN].values()
-        )
+        coordinator: TodoistDataUpdateCoordinator = next(iter(hass.data[DOMAIN].values()))
         await coordinator.async_add_task(call.data)
 
     async def async_update_task(call: ServiceCall) -> None:
         """Update a task."""
-        coordinator: TodoistDataUpdateCoordinator = await anext(
-            c for c in hass.data[DOMAIN].values()
-        )
+        coordinator: TodoistDataUpdateCoordinator = next(iter(hass.data[DOMAIN].values()))
         task_id = call.data["task_id"]
         if not any(task.id == task_id for task in coordinator.data.tasks):
             raise HomeAssistantError(f"Task with id '{task_id}' not found.")
@@ -32,9 +28,7 @@ def async_register_services(hass: HomeAssistant) -> None:
 
     async def async_get_task(call: ServiceCall) -> None:
         """Get a task."""
-        coordinator: TodoistDataUpdateCoordinator = await anext(
-            c for c in hass.data[DOMAIN].values()
-        )
+        coordinator: TodoistDataUpdateCoordinator = next(iter(hass.data[DOMAIN].values()))
         task_id = call.data["task_id"]
         task = next((task for task in coordinator.data.tasks if task.id == task_id), None)
         if not task:
