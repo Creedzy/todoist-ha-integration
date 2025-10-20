@@ -48,29 +48,12 @@ class TodoistConfigFlow(ConfigFlow, domain=DOMAIN):
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
 
-        errors: dict[str, str] = {}
         if user_input is not None:
-            from todoist_api_python.api_async import TodoistAPIAsync
-            from todoist_api_python.errors import TodoistAPIError
-
-            api = TodoistAPIAsync(user_input[CONF_TOKEN])
-            try:
-                await api.get_projects()
-            except TodoistAPIError as err:
-                if err.is_authentication_error():
-                    errors["base"] = "invalid_api_key"
-                else:
-                    errors["base"] = "cannot_connect"
-            except Exception:
-                _LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
-            else:
-                return self.async_create_entry(title="Todoist", data=user_input)
+            return self.async_create_entry(title="Todoist", data=user_input)
 
         return self.async_show_form(
             step_id="user",
             data_schema=STEP_USER_DATA_SCHEMA,
-            errors=errors,
             description_placeholders={"settings_url": SETTINGS_URL},
         )
 
