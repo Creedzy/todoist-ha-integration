@@ -112,3 +112,4 @@ get_task:
       example: "12345678"
       selector:
         text:
+get_all_tasks: {}
