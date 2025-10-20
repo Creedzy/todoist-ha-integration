@@ -17,8 +17,11 @@ from typing import Any
 
 async def async_get_api(hass: HomeAssistant, entry: ConfigEntry) -> Any:
     """Get a Todoist API instance."""
-    from todoist_api_python.api_async import TodoistAPIAsync
-    from todoist_api_python.errors import TodoistAPIError
+    try:
+        from todoist_api_python.api_async import TodoistAPIAsync
+        from todoist_api_python.errors import TodoistAPIError
+    except ModuleNotFoundError as err:
+        raise ConfigEntryNotReady("Todoist API library not installed") from err
 
     token = entry.data[CONF_TOKEN]
     api = TodoistAPIAsync(token)
