@@ -44,7 +44,11 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
                 self.api.get_projects(),
                 self.api.get_labels(),
             )
-            return TodoistData(tasks=tasks, projects=projects, labels=labels)
+            return TodoistData(
+                tasks=[item async for item in tasks],
+                projects=[item async for item in projects],
+                labels=[item async for item in labels],
+            )
         except Exception as err:
             raise UpdateFailed(f"Error communicating with API: {err}") from err
 
