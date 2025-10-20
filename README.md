@@ -11,7 +11,7 @@ The easiest way to install this integration is with [HACS](https://hacs.xyz/).
 1.  Open HACS.
 2.  Go to "Integrations".
 3.  Click the three dots in the top right corner and select "Custom repositories".
-4.  Enter `https://github.com/home-assistant/core-integrations-todoist` as the repository and `integration` as the category.
+4.  Enter `https://github.com/Creedzy/todoist-ha-integration.git` as the repository and `integration` as the category.
 5.  Click "Add".
 6.  The "Todoist" integration will now be available to install.
 
