@@ -16,7 +16,6 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_TOKEN
 from homeassistant.core import callback
-from homeassistant.helpers.selector import BooleanSelector, TextSelector
 
 from .const import CONF_ADVANCED_MODE, CONF_INCLUDE_ARCHIVED, DOMAIN
 
@@ -26,7 +25,7 @@ SETTINGS_URL = "https://app.todoist.com/app/settings/integrations/developer"
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
-        vol.Required(CONF_TOKEN): TextSelector(),
+        vol.Required(CONF_TOKEN): str,
     }
 )
 
@@ -98,13 +97,13 @@ class TodoistOptionsFlowHandler(OptionsFlow):
                         default=self.config_entry.options.get(
                             CONF_INCLUDE_ARCHIVED, False
                         ),
-                    ): BooleanSelector(),
+                    ): bool,
                     vol.Optional(
                         CONF_ADVANCED_MODE,
                         default=self.config_entry.options.get(
                             CONF_ADVANCED_MODE, False
                         ),
-                    ): BooleanSelector(),
+                    ): bool,
                 }
             ),
         )
