@@ -2,14 +2,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-
-from todoist_api_python.models import Label, Project, Task
+from typing import Any
 
 
 @dataclass
 class TodoistData:
     """Data for the Todoist integration."""
 
-    tasks: list[Task]
-    projects: list[Project]
-    labels: list[Label]
+    tasks: list[Any]
+    projects: list[Any]
+    labels: list[Any]
