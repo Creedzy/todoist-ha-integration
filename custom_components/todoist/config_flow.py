@@ -39,7 +39,7 @@ class TodoistConfigFlow(ConfigFlow, domain=DOMAIN):
         config_entry: ConfigEntry,
     ) -> TodoistOptionsFlowHandler:
         """Get the options flow for this handler."""
-        return TodoistOptionsFlowHandler(config_entry)
+        return TodoistOptionsFlowHandler()
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
