@@ -13,7 +13,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from todoist_api_python.models import Task
 
 from homeassistant.util import dt as dt_util
 
@@ -36,7 +35,7 @@ async def async_setup_entry(
     )
 
 
-def _task_api_data(item: TodoItem, api_data: Task | None = None) -> dict[str, Any]:
+def _task_api_data(item: TodoItem, api_data: Any | None = None) -> dict[str, Any]:
     """Convert a TodoItem to the set of add or update arguments."""
     item_data: dict[str, Any] = {"content": item.summary}
     if item.description is not None:

@@ -4,9 +4,6 @@ from __future__ import annotations
 from http import HTTPStatus
 import logging
 
-from todoist_api_python.api_async import TodoistAPIAsync
-from todoist_api_python.errors import TodoistAPIError
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_TOKEN
 from homeassistant.core import HomeAssistant
@@ -15,8 +12,14 @@ from homeassistant.exceptions import ConfigEntryNotReady
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_get_api(hass: HomeAssistant, entry: ConfigEntry) -> TodoistAPIAsync:
+from typing import Any
+
+
+async def async_get_api(hass: HomeAssistant, entry: ConfigEntry) -> Any:
     """Get a Todoist API instance."""
+    from todoist_api_python.api_async import TodoistAPIAsync
+    from todoist_api_python.errors import TodoistAPIError
+
     token = entry.data[CONF_TOKEN]
     api = TodoistAPIAsync(token)
     try:

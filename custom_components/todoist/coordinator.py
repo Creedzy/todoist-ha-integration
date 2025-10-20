@@ -3,9 +3,7 @@
 import asyncio
 from datetime import timedelta
 import logging
-
-from todoist_api_python.api_async import TodoistAPIAsync
-from todoist_api_python.models import Task
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -23,9 +21,12 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         hass: HomeAssistant,
         logger: logging.Logger,
         entry: ConfigEntry,
-        api: TodoistAPIAsync,
+        api: Any,
     ) -> None:
         """Initialize the Todoist coordinator."""
+        from todoist_api_python.api_async import TodoistAPIAsync
+        from todoist_api_python.models import Task
+
         super().__init__(
             hass,
             logger,
@@ -47,7 +48,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         except Exception as err:
             raise UpdateFailed(f"Error communicating with API: {err}") from err
 
-    async def async_add_task(self, data: dict) -> Task:
+    async def async_add_task(self, data: dict) -> Any:
         """Add a task."""
         task = await self.api.add_task(**data)
         await self.async_refresh()

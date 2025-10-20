@@ -4,8 +4,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from todoist_api_python.api_async import TodoistAPIAsync
-from todoist_api_python.errors import TodoistAPIError
 import voluptuous as vol
 
 from homeassistant.config_entries import (
@@ -52,6 +50,9 @@ class TodoistConfigFlow(ConfigFlow, domain=DOMAIN):
 
         errors: dict[str, str] = {}
         if user_input is not None:
+            from todoist_api_python.api_async import TodoistAPIAsync
+            from todoist_api_python.errors import TodoistAPIError
+
             api = TodoistAPIAsync(user_input[CONF_TOKEN])
             try:
                 await api.get_projects()
