@@ -110,7 +110,7 @@ class TodoistTodoListEntity(
                 )
                 due: datetime.date | datetime.datetime | None = None
                 if task.due:
-                    if task.due.datetime:
+                    if hasattr(task.due, "datetime") and task.due.datetime:
                         due = dt_util.as_local(
                             datetime.datetime.fromisoformat(task.due.datetime)
                         )

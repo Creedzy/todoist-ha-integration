@@ -60,7 +60,7 @@ class TodoistCalendarEntity(
             if task.project_id != self._project_id:
                 continue
             if task.due:
-                if task.due.datetime:
+                if hasattr(task.due, "datetime") and task.due.datetime:
                     start = dt_util.as_local(
                         datetime.datetime.fromisoformat(task.due.datetime)
                     )
@@ -87,7 +87,7 @@ class TodoistCalendarEntity(
             if task.project_id != self._project_id:
                 continue
             if task.due:
-                if task.due.datetime:
+                if hasattr(task.due, "datetime") and task.due.datetime:
                     start = dt_util.as_local(
                         datetime.datetime.fromisoformat(task.due.datetime)
                     )
