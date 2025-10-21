@@ -86,42 +86,41 @@ class TodoistTodoListEntity(CoordinatorEntity[TodoistCoordinator], TodoListEntit
         self._attr_unique_id = f"{config_entry_id}-{project_id}"
         self._attr_name = project_name
 
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
+    @property
+    def todo_items(self) -> list[TodoItem] | None:
+        """Get the current set of To-do items."""
         if self.coordinator.data is None:
-            self._attr_todo_items = None
-        else:
-            items = []
-            for task in self.coordinator.data:
-                if task.project_id != self._project_id:
-                    continue
-                if task.parent_id is not None:
-                    # Filter out sub-tasks until they are supported by the UI.
-                    continue
-                if task.is_completed:
-                    status = TodoItemStatus.COMPLETED
-                else:
-                    status = TodoItemStatus.NEEDS_ACTION
-                due: datetime.date | datetime.datetime | None = None
-                if task_due := task.due:
-                    if task_due.datetime:
-                        due = dt_util.as_local(
-                            datetime.datetime.fromisoformat(task_due.datetime)
-                        )
-                    elif task_due.date:
-                        due = datetime.date.fromisoformat(task_due.date)
-                items.append(
-                    TodoItem(
-                        summary=task.content,
-                        uid=task.id,
-                        status=status,
-                        due=due,
-                        description=task.description or None,  # Don't use empty string
+            return None
+
+        items = []
+        for task in self.coordinator.data:
+            if task.project_id != self._project_id:
+                continue
+            if task.parent_id is not None:
+                # Filter out sub-tasks until they are supported by the UI.
+                continue
+            if task.is_completed:
+                status = TodoItemStatus.COMPLETED
+            else:
+                status = TodoItemStatus.NEEDS_ACTION
+            due: datetime.date | datetime.datetime | None = None
+            if task_due := task.due:
+                if task_due.datetime:
+                    due = dt_util.as_local(
+                        datetime.datetime.fromisoformat(task_due.datetime)
                     )
+                elif task_due.date:
+                    due = datetime.date.fromisoformat(task_due.date)
+            items.append(
+                TodoItem(
+                    summary=task.content,
+                    uid=task.id,
+                    status=status,
+                    due=due,
+                    description=task.description or None,  # Don't use empty string
                 )
-            self._attr_todo_items = items
-        super()._handle_coordinator_update()
+            )
+        return items
 
     async def async_create_todo_item(self, item: TodoItem) -> None:
         """Create a To-do item."""
@@ -141,7 +140,7 @@ class TodoistTodoListEntity(CoordinatorEntity[TodoistCoordinator], TodoListEntit
             await self.coordinator.api.update_task(task_id=uid, **update_data)
         if item.status is not None:
             # Only update status if changed
-            for existing_item in self._attr_todo_items or ():
+            for existing_item in self.todo_items or ():
                 if existing_item.uid != item.uid:
                     continue
 
@@ -159,7 +158,3 @@ class TodoistTodoListEntity(CoordinatorEntity[TodoistCoordinator], TodoListEntit
         )
         await self.coordinator.async_refresh()
 
-    async def async_added_to_hass(self) -> None:
-        """When entity is added to hass update state from existing coordinator data."""
-        await super().async_added_to_hass()
-        self._handle_coordinator_update()
