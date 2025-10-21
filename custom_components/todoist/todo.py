@@ -79,54 +79,39 @@ class TodoistTodoListEntity(
         self._attr_name = project_name
 
     @property
-    def extra_state_attributes(self) -> dict[str, Any]:
-        """Return the state attributes."""
-        if not self.coordinator.data:
-            return {}
-        return {
-            "tasks": [
-                task.to_dict()
-                for task in self.coordinator.data.tasks
-                if task.project_id == self._project_id
-            ]
-        }
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
+    def todo_items(self) -> list[TodoItem] | None:
+        """Get the current set of To-do items."""
         if self.coordinator.data is None:
-            self._attr_todo_items = None
-        else:
-            items = []
-            for task in self.coordinator.data.tasks:
-                if task.project_id != self._project_id:
-                    continue
-                if task.parent_id is not None:
-                    continue
-                status = (
-                    TodoItemStatus.COMPLETED
-                    if task.is_completed
-                    else TodoItemStatus.NEEDS_ACTION
-                )
-                due: datetime.date | datetime.datetime | None = None
-                if task.due:
-                    if hasattr(task.due, "datetime") and task.due.datetime:
-                        due = dt_util.as_local(
-                            datetime.datetime.fromisoformat(task.due.datetime)
-                        )
-                    else:
-                        due = dt_util.start_of_local_day(task.due.date)
-                items.append(
-                    TodoItem(
-                        summary=task.content,
-                        uid=task.id,
-                        status=status,
-                        due=due,
-                        description=task.description,
+            return None
+        items = []
+        for task in self.coordinator.data.tasks:
+            if task.project_id != self._project_id:
+                continue
+            if task.parent_id is not None:
+                continue
+            status = (
+                TodoItemStatus.COMPLETED
+                if task.is_completed
+                else TodoItemStatus.NEEDS_ACTION
+            )
+            due: datetime.date | datetime.datetime | None = None
+            if task.due:
+                if hasattr(task.due, "datetime") and task.due.datetime:
+                    due = dt_util.as_local(
+                        datetime.datetime.fromisoformat(task.due.datetime)
                     )
+                else:
+                    due = dt_util.start_of_local_day(task.due.date)
+            items.append(
+                TodoItem(
+                    summary=task.content,
+                    uid=task.id,
+                    status=status,
+                    due=due,
+                    description=task.description,
                 )
-            self._attr_todo_items = items
-        super()._handle_coordinator_update()
+            )
+        return items
 
     async def async_create_todo_item(self, item: TodoItem) -> None:
         """Create a To-do item."""
