@@ -83,7 +83,13 @@ class TodoistTodoListEntity(
         """Return the state attributes."""
         if not self.coordinator.data:
             return {}
-        return {"tasks": [task.to_dict() for task in self.coordinator.data.tasks]}
+        return {
+            "tasks": [
+                task.to_dict()
+                for task in self.coordinator.data.tasks
+                if task.project_id == self._project_id
+            ]
+        }
 
     @callback
     def _handle_coordinator_update(self) -> None:
