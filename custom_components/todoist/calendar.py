@@ -66,7 +66,7 @@ class TodoistCalendarEntity(
                     )
                     end = start + datetime.timedelta(hours=1)
                 else:
-                    start = datetime.date.fromisoformat(task.due.date)
+                    start = dt_util.start_of_local_day(task.due.date)
                     end = start + datetime.timedelta(days=1)
                 if start_date < start < end_date:
                     event = CalendarEvent(
@@ -93,7 +93,7 @@ class TodoistCalendarEntity(
                     )
                     end = start + datetime.timedelta(hours=1)
                 else:
-                    start = datetime.date.fromisoformat(task.due.date)
+                    start = dt_util.start_of_local_day(task.due.date)
                     end = start + datetime.timedelta(days=1)
                 if not next_event or start < next_event.start:
                     next_event = CalendarEvent(

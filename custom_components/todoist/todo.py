@@ -115,7 +115,7 @@ class TodoistTodoListEntity(
                             datetime.datetime.fromisoformat(task.due.datetime)
                         )
                     else:
-                        due = datetime.date.fromisoformat(task.due.date)
+                        due = dt_util.start_of_local_day(task.due.date)
                 items.append(
                     TodoItem(
                         summary=task.content,
