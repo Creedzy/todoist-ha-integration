@@ -1,7 +1,7 @@
 """DataUpdateCoordinator for the Todoist component."""
 
 import asyncio
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import logging
 from typing import Any
 
@@ -50,8 +50,12 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
             ) = await asyncio.gather(
                 self.api.get_tasks(),
                 self.api.get_completed_tasks_by_completion_date(
-                    since=dt_util.start_of_local_day(three_months_ago),
-                    until=dt_util.end_of_local_day(today),
+                    since=dt_util.start_of_local_day(
+                        datetime.combine(three_months_ago, datetime.min.time())
+                    ),
+                    until=dt_util.now().replace(
+                        hour=23, minute=59, second=59, microsecond=999999
+                    ),
                 ),
                 self.api.get_projects(),
                 self.api.get_labels(),
