@@ -1,7 +1,7 @@
 """DataUpdateCoordinator for the Todoist component."""
 
 import asyncio
-from datetime import timedelta
+from datetime import date, timedelta
 import logging
 from typing import Any
 
@@ -38,14 +38,28 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
 
     async def _async_update_data(self) -> TodoistData:
         """Fetch data from the Todoist API."""
+        today = date.today()
+        three_months_ago = today - timedelta(days=90)
         try:
-            tasks, projects, labels = await asyncio.gather(
+            (
+                tasks,
+                completed_tasks,
+                projects,
+                labels,
+            ) = await asyncio.gather(
                 self.api.get_tasks(),
+                self.api.get_completed_tasks_by_completion_date(
+                    since=three_months_ago, until=today
+                ),
                 self.api.get_projects(),
                 self.api.get_labels(),
             )
+            all_tasks = [task async for page in tasks for task in page]
+            all_tasks.extend(
+                [task async for page in completed_tasks for task in page]
+            )
             return TodoistData(
-                tasks=[task async for page in tasks for task in page],
+                tasks=all_tasks,
                 projects=[project async for page in projects for project in page],
                 labels=[label async for page in labels for label in page],
             )
