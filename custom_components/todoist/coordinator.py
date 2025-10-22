@@ -8,6 +8,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .types import TodoistData
@@ -49,15 +50,14 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
             ) = await asyncio.gather(
                 self.api.get_tasks(),
                 self.api.get_completed_tasks_by_completion_date(
-                    since=three_months_ago, until=today
+                    since=dt_util.start_of_local_day(three_months_ago),
+                    until=dt_util.end_of_local_day(today),
                 ),
                 self.api.get_projects(),
                 self.api.get_labels(),
             )
             all_tasks = [task async for page in tasks for task in page]
-            all_tasks.extend(
-                [task async for page in completed_tasks for task in page]
-            )
+            all_tasks.extend(completed_tasks)
             return TodoistData(
                 tasks=all_tasks,
                 projects=[project async for page in projects for project in page],
