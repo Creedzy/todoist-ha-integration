@@ -60,14 +60,19 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
                 self.api.get_projects(),
                 self.api.get_labels(),
             )
+            self.logger.debug(f"Tasks type: {type(tasks)}")
+            self.logger.debug(f"Completed tasks type: {type(completed_tasks)}")
             all_tasks = [task async for page in tasks for task in page]
-            all_tasks.extend(completed_tasks)
+            all_tasks.extend(
+                [task async for page in completed_tasks for task in page]
+            )
             return TodoistData(
                 tasks=all_tasks,
                 projects=[project async for page in projects for project in page],
                 labels=[label async for page in labels for label in page],
             )
         except Exception as err:
+            self.logger.error("Error communicating with API: %s", err)
             raise UpdateFailed(f"Error communicating with API: {err}") from err
 
     async def async_add_task(self, data: dict) -> Any:
