@@ -1,7 +1,6 @@
 """A todo platform for Todoist."""
 import asyncio
 import datetime
-import json
 from typing import Any, cast
 
 from homeassistant.components.todo import (
@@ -109,7 +108,7 @@ class TodoistTodoListEntity(
                     uid=task.id,
                     status=status,
                     due=due,
-                    description=json.dumps(task.to_dict()),
+                    description=task.description,
                 )
             )
         return items

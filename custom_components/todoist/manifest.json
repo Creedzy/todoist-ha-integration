@@ -6,5 +6,6 @@
   "documentation": "https://www.home-assistant.io/integrations/todoist",
   "iot_class": "cloud_polling",
   "loggers": ["todoist"],
+  "platforms": ["calendar", "todo", "sensor"],
   "requirements": ["todoist-api-python==3.1.0"]
 }

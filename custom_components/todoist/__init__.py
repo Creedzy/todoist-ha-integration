@@ -16,7 +16,7 @@ from .services import async_register_services
 _LOGGER = logging.getLogger(__name__)
 
 
-PLATFORMS: list[Platform] = [Platform.CALENDAR, Platform.TODO]
+PLATFORMS: list[Platform] = [Platform.CALENDAR, Platform.TODO, Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
