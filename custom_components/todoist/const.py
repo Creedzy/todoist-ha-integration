@@ -6,6 +6,8 @@ CONF_EXTRA_PROJECTS: Final = "custom_projects"
 CONF_PROJECT_DUE_DATE: Final = "due_date_days"
 CONF_PROJECT_LABEL_WHITELIST: Final = "labels"
 CONF_PROJECT_WHITELIST: Final = "include_projects"
+CONF_INCLUDE_ARCHIVED: Final = "include_archived"
+CONF_ADVANCED_MODE: Final = "advanced_mode"
 
 # Calendar Platform: Does this calendar event last all day?
 ALL_DAY: Final = "all_day"
@@ -94,3 +96,6 @@ COLLABORATORS: Final = "collaborators"
 DOMAIN: Final = "todoist"
 
 SERVICE_NEW_TASK: Final = "new_task"
+SERVICE_UPDATE_TASK: Final = "update_task"
+SERVICE_GET_TASK: Final = "get_task"
+SERVICE_GET_ALL_TASKS: Final = "get_all_tasks"

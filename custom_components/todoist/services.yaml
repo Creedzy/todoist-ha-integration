@@ -56,11 +56,34 @@ new_task:
       example: "2019-10-22"
       selector:
         text:
-    reminder_date_string:
+update_task:
+  fields:
+    task_id:
+      required: true
+      example: "12345678"
+      selector:
+        text:
+    content:
+      example: Pick up the mail.
+      selector:
+        text:
+    description:
+      selector:
+        text:
+    labels:
+      example: Chores,Delivieries
+      selector:
+        text:
+    priority:
+      selector:
+        number:
+          min: 1
+          max: 4
+    due_date_string:
       example: Tomorrow
       selector:
         text:
-    reminder_date_lang:
+    due_date_lang:
       selector:
         select:
           options:
@@ -78,7 +101,15 @@ new_task:
             - "ru"
             - "sv"
             - "zh"
-    reminder_date:
-      example: "2019-10-22T10:30:00"
+    due_date:
+      example: "2019-10-22"
       selector:
         text:
+get_task:
+  fields:
+    task_id:
+      required: true
+      example: "12345678"
+      selector:
+        text:
+get_all_tasks: {}
