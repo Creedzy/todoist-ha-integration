@@ -50,14 +50,50 @@ class TodoistProjectSensor(
 
     def _update_attrs(self) -> None:
         """Update the sensor's attributes."""
-        tasks = []
+        tasks: list[dict] = []
+        labels: list[dict[str, str]] = []
+        label_lookup: dict[str, str] = {}
+        project_payload: dict[str, str] | None = None
+
         if self.coordinator.data:
             tasks = [
                 task.to_dict()
                 for task in self.coordinator.data.tasks
                 if task.project_id == self._project_id
             ]
-        self._attr_extra_state_attributes = {"tasks": tasks}
+
+            labels = [
+                {"id": str(label.id), "name": label.name}
+                for label in self.coordinator.data.labels
+                if getattr(label, "name", None) is not None
+            ]
+            label_lookup = {item["id"]: item["name"] for item in labels}
+
+            project = next(
+                (
+                    project
+                    for project in self.coordinator.data.projects
+                    if project.id == self._project_id
+                ),
+                None,
+            )
+            if project is not None:
+                project_payload = (
+                    project.to_dict()
+                    if hasattr(project, "to_dict")
+                    else {"id": project.id, "name": project.name}
+                )
+
+        extra_attrs: dict[str, object] = {"tasks": tasks, "project_id": self._project_id}
+
+        if project_payload is not None:
+            extra_attrs["project"] = project_payload
+        if labels:
+            extra_attrs["label_options"] = labels
+        if label_lookup:
+            extra_attrs["labels_by_id"] = label_lookup
+
+        self._attr_extra_state_attributes = extra_attrs
 
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""

@@ -5,8 +5,13 @@ from datetime import date, datetime, timedelta
 import logging
 from typing import Any
 
+from aiohttp import ClientError
+
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_TOKEN
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -36,6 +41,8 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         )
         self.api = api
         self.entry = entry
+        self._session = async_get_clientsession(hass)
+        self._token = entry.data.get(CONF_TOKEN)
 
     async def _async_update_data(self) -> TodoistData:
         """Fetch data from the Todoist API."""
@@ -87,15 +94,47 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         await self.async_refresh()
         return result
 
+    async def _async_task_action(self, task_id: str, action: str) -> None:
+        """Perform a Todoist REST task action when the SDK lacks helpers."""
+
+        if not self._token:
+            raise HomeAssistantError("Todoist token missing from config entry")
+
+        url = f"https://api.todoist.com/rest/v2/tasks/{task_id}/{action}"
+        headers = {
+            "Authorization": f"Bearer {self._token}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            async with self._session.post(url, headers=headers, timeout=15) as response:
+                if response.status >= 400:
+                    body = await response.text()
+                    raise HomeAssistantError(
+                        f"Todoist API returned HTTP {response.status} for {action}: {body}"
+                    )
+        except ClientError as err:
+            raise HomeAssistantError(f"Todoist API request failed: {err}") from err
+
     async def async_close_task(self, task_id: str) -> bool:
         """Close a task."""
-        result = await self.api.close_task(task_id)
+        close_fn = getattr(self.api, "close_task", None)
+        if callable(close_fn):
+            result = await close_fn(task_id)
+        else:
+            await self._async_task_action(task_id, "close")
+            result = True
         await self.async_refresh()
         return result
 
     async def async_reopen_task(self, task_id: str) -> bool:
         """Reopen a task."""
-        result = await self.api.reopen_task(task_id)
+        reopen_fn = getattr(self.api, "reopen_task", None)
+        if callable(reopen_fn):
+            result = await reopen_fn(task_id)
+        else:
+            await self._async_task_action(task_id, "reopen")
+            result = True
         await self.async_refresh()
         return result
 
