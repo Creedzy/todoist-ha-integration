@@ -16,6 +16,50 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from homeassistant.util import dt as dt_util
 
+
+def _parse_due_datetime(due_obj: Any) -> datetime.datetime | None:
+    """Return a timezone-aware datetime for a Todoist due entry."""
+
+    raw_datetime = getattr(due_obj, "datetime", None)
+    if not raw_datetime:
+        return None
+
+    parsed = dt_util.parse_datetime(raw_datetime)
+    if parsed is None:
+        try:
+            parsed = datetime.datetime.fromisoformat(raw_datetime)
+        except (TypeError, ValueError):
+            return None
+
+    if parsed.tzinfo is None:
+        timezone = getattr(due_obj, "timezone", None)
+        tzinfo = dt_util.get_time_zone(timezone) if timezone else dt_util.UTC
+        parsed = parsed.replace(tzinfo=tzinfo)
+
+    return parsed
+
+
+def _parse_due_date(due_obj: Any) -> datetime.date | None:
+    """Return a date object for a Todoist due entry."""
+
+    raw_date = getattr(due_obj, "date", None)
+    if raw_date is None:
+        return None
+
+    if isinstance(raw_date, datetime.date):
+        return raw_date
+
+    if isinstance(raw_date, str):
+        parsed = dt_util.parse_date(raw_date)
+        if parsed is not None:
+            return parsed
+        try:
+            return datetime.date.fromisoformat(raw_date)
+        except ValueError:
+            return None
+
+    return None
+
 from .const import DOMAIN
 from .coordinator import TodoistDataUpdateCoordinator
 from .types import TodoistData
@@ -96,12 +140,13 @@ class TodoistTodoListEntity(
             )
             due: datetime.date | datetime.datetime | None = None
             if task.due:
-                if hasattr(task.due, "datetime") and task.due.datetime:
-                    due = dt_util.as_local(
-                        datetime.datetime.fromisoformat(task.due.datetime)
-                    )
+                due_datetime = _parse_due_datetime(task.due)
+                if due_datetime is not None:
+                    due = dt_util.as_local(due_datetime)
                 else:
-                    due = dt_util.start_of_local_day(task.due.date)
+                    due_date = _parse_due_date(task.due)
+                    if due_date is not None:
+                        due = dt_util.start_of_local_day(due_date)
             items.append(
                 TodoItem(
                     summary=task.content,
