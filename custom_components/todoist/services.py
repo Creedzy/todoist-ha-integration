@@ -30,7 +30,8 @@ def async_register_services(hass: HomeAssistant) -> None:
         task_id = call.data["task_id"]
         if not any(task.id == task_id for task in coordinator.data.tasks):
             raise HomeAssistantError(f"Task with id '{task_id}' not found.")
-        await coordinator.async_update_task(task_id, call.data)
+        payload = {key: value for key, value in call.data.items() if key != "task_id"}
+        await coordinator.async_update_task(task_id, payload)
 
     async def async_get_task(call: ServiceCall) -> None:
         """Get a task."""

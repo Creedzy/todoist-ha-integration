@@ -90,7 +90,8 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
 
     async def async_update_task(self, task_id: str, data: dict) -> bool:
         """Update a task."""
-        result = await self.api.update_task(task_id, **data)
+        sanitized = {key: value for key, value in data.items() if key != "task_id"}
+        result = await self.api.update_task(task_id, **sanitized)
         await self.async_refresh()
         return result
 
