@@ -22,6 +22,11 @@ def _parse_due_datetime(due_obj: Any) -> datetime.datetime | None:
 
     raw_datetime = getattr(due_obj, "datetime", None)
     if not raw_datetime:
+        raw_date = getattr(due_obj, "date", None)
+        if isinstance(raw_date, str) and "T" in raw_date:
+            raw_datetime = raw_date
+
+    if not raw_datetime:
         return None
 
     parsed = dt_util.parse_datetime(raw_datetime)
@@ -33,7 +38,7 @@ def _parse_due_datetime(due_obj: Any) -> datetime.datetime | None:
 
     if parsed.tzinfo is None:
         timezone = getattr(due_obj, "timezone", None)
-        tzinfo = dt_util.get_time_zone(timezone) if timezone else dt_util.UTC
+        tzinfo = dt_util.get_time_zone(timezone) if timezone else dt_util.DEFAULT_TIME_ZONE
         parsed = parsed.replace(tzinfo=tzinfo)
 
     return parsed
@@ -50,11 +55,12 @@ def _parse_due_date(due_obj: Any) -> datetime.date | None:
         return raw_date
 
     if isinstance(raw_date, str):
-        parsed = dt_util.parse_date(raw_date)
+        raw_value = raw_date.split("T")[0]
+        parsed = dt_util.parse_date(raw_value)
         if parsed is not None:
             return parsed
         try:
-            return datetime.date.fromisoformat(raw_date)
+            return datetime.date.fromisoformat(raw_value)
         except ValueError:
             return None
 
