@@ -92,9 +92,14 @@ def _task_api_data(item: TodoItem, api_data: Any | None = None) -> dict[str, Any
         item_data["description"] = item.description
     if item.due is not None:
         if isinstance(item.due, datetime.datetime):
-            item_data["due_datetime"] = item.due.isoformat()
+            due_dt = item.due
+            if due_dt.tzinfo is None:
+                due_dt = due_dt.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+            item_data["due_datetime"] = due_dt
+        elif isinstance(item.due, datetime.date):
+            item_data["due_date"] = item.due
         else:
-            item_data["due_date"] = item.due.isoformat()
+            item_data["due_string"] = str(item.due)
         if api_data and api_data.due:
             item_data["due_string"] = api_data.due.string
     else:
