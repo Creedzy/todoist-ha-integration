@@ -82,17 +82,19 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
             self.logger.error("Error communicating with API: %s", err)
             raise UpdateFailed(f"Error communicating with API: {err}") from err
 
-    async def async_add_task(self, data: dict) -> Any:
+    async def async_add_task(self, data: dict, *, refresh: bool = True) -> Any:
         """Add a task."""
         task = await self.api.add_task(**data)
-        await self.async_refresh()
+        if refresh:
+            await self.async_refresh()
         return task
 
-    async def async_update_task(self, task_id: str, data: dict) -> bool:
+    async def async_update_task(self, task_id: str, data: dict, *, refresh: bool = True) -> bool:
         """Update a task."""
         sanitized = {key: value for key, value in data.items() if key != "task_id"}
         result = await self.api.update_task(task_id, **sanitized)
-        await self.async_refresh()
+        if refresh:
+            await self.async_refresh()
         return result
 
     async def _async_task_action(self, task_id: str, action: str) -> None:
@@ -117,7 +119,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         except ClientError as err:
             raise HomeAssistantError(f"Todoist API request failed: {err}") from err
 
-    async def async_close_task(self, task_id: str) -> bool:
+    async def async_close_task(self, task_id: str, *, refresh: bool = True) -> bool:
         """Close a task."""
         close_fn = getattr(self.api, "close_task", None)
         if callable(close_fn):
@@ -125,10 +127,11 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         else:
             await self._async_task_action(task_id, "close")
             result = True
-        await self.async_refresh()
+        if refresh:
+            await self.async_refresh()
         return result
 
-    async def async_reopen_task(self, task_id: str) -> bool:
+    async def async_reopen_task(self, task_id: str, *, refresh: bool = True) -> bool:
         """Reopen a task."""
         reopen_fn = getattr(self.api, "reopen_task", None)
         if callable(reopen_fn):
@@ -136,11 +139,13 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         else:
             await self._async_task_action(task_id, "reopen")
             result = True
-        await self.async_refresh()
+        if refresh:
+            await self.async_refresh()
         return result
 
-    async def async_delete_task(self, task_id: str) -> bool:
+    async def async_delete_task(self, task_id: str, *, refresh: bool = True) -> bool:
         """Delete a task."""
         result = await self.api.delete_task(task_id)
-        await self.async_refresh()
+        if refresh:
+            await self.async_refresh()
         return result
