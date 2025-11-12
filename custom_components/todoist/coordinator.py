@@ -53,9 +53,9 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         )
         self.api = api
         self.entry = entry
-    self._session = async_get_clientsession(hass)
-    self._token = entry.data.get(CONF_TOKEN)
-    self._task_lookup: dict[str, Any] = {}
+        self._session = async_get_clientsession(hass)
+        self._token = entry.data.get(CONF_TOKEN)
+        self._task_lookup: dict[str, Any] = {}
 
     async def _async_update_data(self) -> TodoistData:
         """Fetch data from the Todoist API."""
@@ -115,7 +115,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         """Update a task."""
         sanitized = {key: value for key, value in data.items() if key != "task_id"}
         result = await self.api.update_task(task_id, **sanitized)
-    self._task_lookup.pop(str(task_id), None)
+        self._task_lookup.pop(str(task_id), None)
         if refresh:
             await self.async_refresh()
         return result
@@ -150,7 +150,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         else:
             await self._async_task_action(task_id, "close")
             result = True
-    self._task_lookup.pop(str(task_id), None)
+        self._task_lookup.pop(str(task_id), None)
         if refresh:
             await self.async_refresh()
         return result
@@ -163,7 +163,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         else:
             await self._async_task_action(task_id, "reopen")
             result = True
-    self._task_lookup.pop(str(task_id), None)
+        self._task_lookup.pop(str(task_id), None)
         if refresh:
             await self.async_refresh()
         return result
@@ -171,7 +171,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
     async def async_delete_task(self, task_id: str, *, refresh: bool = True) -> bool:
         """Delete a task."""
         result = await self.api.delete_task(task_id)
-    self._task_lookup.pop(str(task_id), None)
+        self._task_lookup.pop(str(task_id), None)
         if refresh:
             await self.async_refresh()
         return result
