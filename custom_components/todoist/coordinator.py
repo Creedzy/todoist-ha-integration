@@ -212,3 +212,8 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         else:
             self._task_lookup[key] = task
             await self.async_refresh()
+
+    def get_cached_task(self, task_id: str) -> Any | None:
+        """Return the cached Todoist task, if available."""
+
+        return self._task_lookup.get(str(task_id))

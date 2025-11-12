@@ -71,6 +71,43 @@ from .coordinator import TodoistDataUpdateCoordinator
 from .types import TodoistData
 
 
+def _payload_requires_update(task: Any | None, payload: dict[str, Any]) -> bool:
+    """Return True if the Todoist payload differs from the cached task."""
+
+    if task is None:
+        return True
+
+    content = payload.get("content")
+    if content is not None and getattr(task, "content", None) != content:
+        return True
+
+    description = payload.get("description")
+    if description is not None and getattr(task, "description", None) != description:
+        return True
+
+    due_info = getattr(task, "due", None)
+    if "due_datetime" in payload:
+        due_dt = payload["due_datetime"]
+        due_iso = due_dt.isoformat() if hasattr(due_dt, "isoformat") else str(due_dt)
+        existing_iso = getattr(due_info, "datetime", None)
+        if existing_iso != due_iso:
+            return True
+
+    if "due_date" in payload:
+        due_date = payload["due_date"]
+        due_date_str = due_date.isoformat() if hasattr(due_date, "isoformat") else str(due_date)
+        existing_date = getattr(due_info, "date", None)
+        if existing_date != due_date_str:
+            return True
+
+    if "due_string" in payload:
+        if due_info is None or getattr(due_info, "string", None) != payload["due_string"]:
+            return True
+
+    # No relevant differences detected.
+    return False
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -174,27 +211,33 @@ class TodoistTodoListEntity(
         await self.coordinator.async_add_task(
             {**_task_api_data(item), "project_id": self._project_id}
         )
+        self._schedule_full_refresh()
 
     async def async_update_todo_item(self, item: TodoItem) -> None:
         """Update a To-do item."""
         uid: str = cast(str, item.uid)
         payload = _task_api_data(item)
         status = item.status
+        cached_task = self.coordinator.get_cached_task(uid)
+        needs_update = _payload_requires_update(cached_task, payload)
 
         if status == TodoItemStatus.COMPLETED:
-            await self.coordinator.async_update_task(uid, payload, refresh=False)
+            if needs_update:
+                await self.coordinator.async_update_task(uid, payload, refresh=False)
             await self.coordinator.async_close_task(uid, refresh=False)
-            await self.coordinator.async_refresh_task(uid)
+            self._schedule_task_refresh(uid)
             return
 
         if status == TodoItemStatus.NEEDS_ACTION:
-            await self.coordinator.async_update_task(uid, payload, refresh=False)
+            if needs_update:
+                await self.coordinator.async_update_task(uid, payload, refresh=False)
             await self.coordinator.async_reopen_task(uid, refresh=False)
-            await self.coordinator.async_refresh_task(uid)
+            self._schedule_task_refresh(uid)
             return
 
-        await self.coordinator.async_update_task(uid, payload, refresh=False)
-        await self.coordinator.async_refresh_task(uid)
+        if needs_update:
+            await self.coordinator.async_update_task(uid, payload, refresh=False)
+        self._schedule_task_refresh(uid)
 
     async def async_delete_todo_items(self, uids: list[str]) -> None:
         """Delete a To-do item."""
@@ -205,4 +248,18 @@ class TodoistTodoListEntity(
         for uid in leading:
             await self.coordinator.async_delete_task(uid, refresh=False)
         await self.coordinator.async_delete_task(final, refresh=False)
-        await self.coordinator.async_refresh()
+        self._schedule_full_refresh()
+
+    def _schedule_task_refresh(self, task_id: str) -> None:
+        """Refresh a single task in the background."""
+
+        if not task_id or self.hass is None:
+            return
+        self.hass.async_create_task(self.coordinator.async_refresh_task(task_id))
+
+    def _schedule_full_refresh(self) -> None:
+        """Trigger a full coordinator refresh without blocking."""
+
+        if self.hass is None:
+            return
+        self.hass.async_create_task(self.coordinator.async_refresh())
