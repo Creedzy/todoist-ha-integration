@@ -19,6 +19,18 @@ from .const import DOMAIN
 from .types import TodoistData
 
 
+def _task_key(task: Any) -> str | None:
+    """Return the string key for a Todoist task-like object."""
+
+    if task is None:
+        return None
+
+    identifier = getattr(task, "id", None) or getattr(task, "task_id", None)
+    if identifier is None:
+        return None
+    return str(identifier)
+
+
 class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
     """Coordinator for updating data from Todoist."""
 
@@ -74,7 +86,11 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
             all_tasks.extend(
                 [task async for page in completed_tasks for task in page]
             )
-            self._task_lookup = {task.id: task for task in all_tasks}
+            self._task_lookup = {}
+            for task in all_tasks:
+                key = _task_key(task)
+                if key is not None:
+                    self._task_lookup[key] = task
             return TodoistData(
                 tasks=all_tasks,
                 projects=[project async for page in projects for project in page],
@@ -88,7 +104,9 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
     async def async_add_task(self, data: dict, *, refresh: bool = True) -> Any:
         """Add a task."""
         task = await self.api.add_task(**data)
-        self._task_lookup[task.id] = task
+        key = _task_key(task)
+        if key is not None:
+            self._task_lookup[key] = task
         if refresh:
             await self.async_refresh()
         return task
@@ -97,7 +115,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         """Update a task."""
         sanitized = {key: value for key, value in data.items() if key != "task_id"}
         result = await self.api.update_task(task_id, **sanitized)
-        self._task_lookup.pop(task_id, None)
+    self._task_lookup.pop(str(task_id), None)
         if refresh:
             await self.async_refresh()
         return result
@@ -132,7 +150,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         else:
             await self._async_task_action(task_id, "close")
             result = True
-        self._task_lookup.pop(task_id, None)
+    self._task_lookup.pop(str(task_id), None)
         if refresh:
             await self.async_refresh()
         return result
@@ -145,7 +163,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         else:
             await self._async_task_action(task_id, "reopen")
             result = True
-        self._task_lookup.pop(task_id, None)
+    self._task_lookup.pop(str(task_id), None)
         if refresh:
             await self.async_refresh()
         return result
@@ -153,7 +171,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
     async def async_delete_task(self, task_id: str, *, refresh: bool = True) -> bool:
         """Delete a task."""
         result = await self.api.delete_task(task_id)
-        self._task_lookup.pop(task_id, None)
+    self._task_lookup.pop(str(task_id), None)
         if refresh:
             await self.async_refresh()
         return result
@@ -167,16 +185,22 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
             await self.async_refresh()
             return
 
-        existing = self._task_lookup.get(task_id)
+        key = _task_key(task)
+        if key is None:
+            await self.async_refresh()
+            return
+
+        existing = self._task_lookup.get(key)
         if existing and self.data:
             tasks = list(self.data.tasks)
             for index, current in enumerate(tasks):
-                if current.id == task_id:
+                current_key = _task_key(current)
+                if current_key == key:
                     tasks[index] = task
                     break
             else:
                 tasks.append(task)
-            self._task_lookup[task_id] = task
+            self._task_lookup[key] = task
             self.async_set_updated_data(
                 TodoistData(
                     tasks=tasks,
@@ -186,5 +210,5 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
                 )
             )
         else:
-            self._task_lookup[task_id] = task
+            self._task_lookup[key] = task
             await self.async_refresh()
