@@ -12,3 +12,4 @@ class TodoistData:
     tasks: list[Any]
     projects: list[Any]
     labels: list[Any]
+    last_update: float

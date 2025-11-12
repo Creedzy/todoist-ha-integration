@@ -183,15 +183,18 @@ class TodoistTodoListEntity(
 
         if status == TodoItemStatus.COMPLETED:
             await self.coordinator.async_update_task(uid, payload, refresh=False)
-            await self.coordinator.async_close_task(uid, refresh=True)
+            await self.coordinator.async_close_task(uid, refresh=False)
+            await self.coordinator.async_refresh_task(uid)
             return
 
         if status == TodoItemStatus.NEEDS_ACTION:
             await self.coordinator.async_update_task(uid, payload, refresh=False)
-            await self.coordinator.async_reopen_task(uid, refresh=True)
+            await self.coordinator.async_reopen_task(uid, refresh=False)
+            await self.coordinator.async_refresh_task(uid)
             return
 
-        await self.coordinator.async_update_task(uid, payload, refresh=True)
+        await self.coordinator.async_update_task(uid, payload, refresh=False)
+        await self.coordinator.async_refresh_task(uid)
 
     async def async_delete_todo_items(self, uids: list[str]) -> None:
         """Delete a To-do item."""
@@ -201,4 +204,5 @@ class TodoistTodoListEntity(
         *leading, final = uids
         for uid in leading:
             await self.coordinator.async_delete_task(uid, refresh=False)
-        await self.coordinator.async_delete_task(final, refresh=True)
+        await self.coordinator.async_delete_task(final, refresh=False)
+    await self.coordinator.async_refresh()

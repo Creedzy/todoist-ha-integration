@@ -41,8 +41,9 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         )
         self.api = api
         self.entry = entry
-        self._session = async_get_clientsession(hass)
-        self._token = entry.data.get(CONF_TOKEN)
+    self._session = async_get_clientsession(hass)
+    self._token = entry.data.get(CONF_TOKEN)
+    self._task_lookup: dict[str, Any] = {}
 
     async def _async_update_data(self) -> TodoistData:
         """Fetch data from the Todoist API."""
@@ -73,10 +74,12 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
             all_tasks.extend(
                 [task async for page in completed_tasks for task in page]
             )
+            self._task_lookup = {task.id: task for task in all_tasks}
             return TodoistData(
                 tasks=all_tasks,
                 projects=[project async for page in projects for project in page],
                 labels=[label async for page in labels for label in page],
+                last_update=dt_util.utcnow().timestamp(),
             )
         except Exception as err:
             self.logger.error("Error communicating with API: %s", err)
@@ -85,6 +88,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
     async def async_add_task(self, data: dict, *, refresh: bool = True) -> Any:
         """Add a task."""
         task = await self.api.add_task(**data)
+        self._task_lookup[task.id] = task
         if refresh:
             await self.async_refresh()
         return task
@@ -93,6 +97,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         """Update a task."""
         sanitized = {key: value for key, value in data.items() if key != "task_id"}
         result = await self.api.update_task(task_id, **sanitized)
+        self._task_lookup.pop(task_id, None)
         if refresh:
             await self.async_refresh()
         return result
@@ -127,6 +132,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         else:
             await self._async_task_action(task_id, "close")
             result = True
+        self._task_lookup.pop(task_id, None)
         if refresh:
             await self.async_refresh()
         return result
@@ -139,6 +145,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         else:
             await self._async_task_action(task_id, "reopen")
             result = True
+        self._task_lookup.pop(task_id, None)
         if refresh:
             await self.async_refresh()
         return result
@@ -146,6 +153,38 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
     async def async_delete_task(self, task_id: str, *, refresh: bool = True) -> bool:
         """Delete a task."""
         result = await self.api.delete_task(task_id)
+        self._task_lookup.pop(task_id, None)
         if refresh:
             await self.async_refresh()
         return result
+
+    async def async_refresh_task(self, task_id: str) -> None:
+        """Fetch a single task and update local state."""
+        try:
+            task = await self.api.get_task(task_id)
+        except Exception as err:  # broad except: Todoist SDK raises many types
+            self.logger.warning("Failed to fetch task %s: %s", task_id, err)
+            await self.async_refresh()
+            return
+
+        existing = self._task_lookup.get(task_id)
+        if existing and self.data:
+            tasks = list(self.data.tasks)
+            for index, current in enumerate(tasks):
+                if current.id == task_id:
+                    tasks[index] = task
+                    break
+            else:
+                tasks.append(task)
+            self._task_lookup[task_id] = task
+            self.async_set_updated_data(
+                TodoistData(
+                    tasks=tasks,
+                    projects=self.data.projects,
+                    labels=self.data.labels,
+                    last_update=dt_util.utcnow().timestamp(),
+                )
+            )
+        else:
+            self._task_lookup[task_id] = task
+            await self.async_refresh()
