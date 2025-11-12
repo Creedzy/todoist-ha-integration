@@ -205,4 +205,4 @@ class TodoistTodoListEntity(
         for uid in leading:
             await self.coordinator.async_delete_task(uid, refresh=False)
         await self.coordinator.async_delete_task(final, refresh=False)
-    await self.coordinator.async_refresh()
+        await self.coordinator.async_refresh()
