@@ -93,9 +93,29 @@ def _payload_requires_update(task: Any | None, payload: dict[str, Any]) -> bool:
     due_info = getattr(task, "due", None)
     if "due_datetime" in payload:
         due_dt = payload["due_datetime"]
-        due_iso = due_dt.isoformat() if hasattr(due_dt, "isoformat") else str(due_dt)
         existing_iso = getattr(due_info, "datetime", None)
-        if existing_iso != due_iso:
+        if existing_iso is None:
+            return True
+
+        def _normalise_datetime(value: Any) -> datetime.datetime | None:
+            candidate = value
+            if not isinstance(candidate, datetime.datetime):
+                parsed = dt_util.parse_datetime(str(candidate))
+                if parsed is None:
+                    try:
+                        parsed = datetime.datetime.fromisoformat(str(candidate))
+                    except (TypeError, ValueError):
+                        return None
+                candidate = parsed
+            if candidate.tzinfo is None:
+                candidate = candidate.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+            return dt_util.as_utc(candidate)
+
+        desired_dt = _normalise_datetime(due_dt)
+        existing_dt = _normalise_datetime(existing_iso)
+        if desired_dt is None or existing_dt is None:
+            return True
+        if desired_dt != existing_dt:
             return True
 
     if "due_date" in payload:
@@ -106,7 +126,11 @@ def _payload_requires_update(task: Any | None, payload: dict[str, Any]) -> bool:
             return True
 
     if "due_string" in payload:
-        if due_info is None or getattr(due_info, "string", None) != payload["due_string"]:
+        due_string = payload["due_string"]
+        existing_string = getattr(due_info, "string", None)
+        if due_string == "no date" and not existing_string and due_info is None:
+            pass
+        elif due_info is None or existing_string != due_string:
             return True
 
     # No relevant differences detected.
@@ -142,9 +166,13 @@ def _task_api_data(item: TodoItem, api_data: Any | None = None) -> dict[str, Any
             item_data["due_date"] = item.due
         else:
             item_data["due_string"] = str(item.due)
-        if api_data and api_data.due:
-            item_data["due_string"] = api_data.due.string
-    else:
+        if api_data and getattr(api_data, "due", None):
+            # Preserve Todoist's natural language string when we know it.
+            due_string = getattr(api_data.due, "string", None)
+            if due_string:
+                item_data.setdefault("due_string", due_string)
+    elif api_data and getattr(api_data, "due", None):
+        # Only clear the due date if the source task actually has one.
         item_data["due_string"] = "no date"
     return item_data
 
@@ -243,9 +271,9 @@ class TodoistTodoListEntity(
     async def async_update_todo_item(self, item: TodoItem) -> None:
         """Update a To-do item."""
         uid: str = cast(str, item.uid)
-        payload = _task_api_data(item)
         status = item.status
         cached_task = self.coordinator.get_cached_task(uid)
+        payload = _task_api_data(item, cached_task)
         needs_update = _payload_requires_update(cached_task, payload)
         started = time.perf_counter()
         self._log_debug(

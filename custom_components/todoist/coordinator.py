@@ -142,8 +142,8 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         started = time.perf_counter()
         sanitized = {key: value for key, value in data.items() if key != "task_id"}
         result = await self.api.update_task(task_id, **sanitized)
-        self._task_lookup.pop(str(task_id), None)
         if refresh:
+            self._task_lookup.pop(str(task_id), None)
             await self.async_refresh()
         self._log_timing("async_update_task", started, refresh=refresh, task_id=task_id)
         return result
@@ -179,8 +179,8 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         else:
             await self._async_task_action(task_id, "close")
             result = True
-        self._task_lookup.pop(str(task_id), None)
         if refresh:
+            self._task_lookup.pop(str(task_id), None)
             await self.async_refresh()
         self._log_timing("async_close_task", started, refresh=refresh, task_id=task_id)
         return result
@@ -194,8 +194,8 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         else:
             await self._async_task_action(task_id, "reopen")
             result = True
-        self._task_lookup.pop(str(task_id), None)
         if refresh:
+            self._task_lookup.pop(str(task_id), None)
             await self.async_refresh()
         self._log_timing("async_reopen_task", started, refresh=refresh, task_id=task_id)
         return result
@@ -226,19 +226,37 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
             return
 
         existing = self._task_lookup.get(key)
-        if existing and self.data:
-            tasks = list(self.data.tasks)
-            for index, current in enumerate(tasks):
-                current_key = _task_key(current)
-                if current_key == key:
-                    tasks[index] = task
+        cached_match = existing is not None
+        tasks_snapshot = None
+        if not cached_match and self.data:
+            for candidate in self.data.tasks:
+                if _task_key(candidate) == key:
+                    existing = candidate
+                    cached_match = True
                     break
+
+        if self.data:
+            tasks_snapshot = list(self.data.tasks)
+
+        if tasks_snapshot is not None:
+            if cached_match:
+                for index, current in enumerate(tasks_snapshot):
+                    if _task_key(current) == key:
+                        tasks_snapshot[index] = task
+                        break
+                else:
+                    tasks_snapshot.append(task)
             else:
-                tasks.append(task)
+                # Task not previously cached; add or remove based on completion flag.
+                if getattr(task, "is_deleted", False):
+                    tasks_snapshot = [t for t in tasks_snapshot if _task_key(t) != key]
+                else:
+                    tasks_snapshot.append(task)
+
             self._task_lookup[key] = task
             self.async_set_updated_data(
                 TodoistData(
-                    tasks=tasks,
+                    tasks=tasks_snapshot,
                     projects=self.data.projects,
                     labels=self.data.labels,
                     last_update=dt_util.utcnow().timestamp(),
@@ -247,7 +265,10 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         else:
             self._task_lookup[key] = task
             await self.async_refresh()
-        self._log_timing("async_refresh_task", started, task_id=task_id, cache_hit=existing is not None)
+            self._log_timing("async_refresh_task", started, task_id=task_id, cache_hit=cached_match)
+            return
+
+        self._log_timing("async_refresh_task", started, task_id=task_id, cache_hit=cached_match)
 
     def get_cached_task(self, task_id: str) -> Any | None:
         """Return the cached Todoist task, if available."""
