@@ -1,4 +1,4 @@
-"""DataUpdateCoordinator for the Todoist component."""
+"""DataUpdateCoordinator for the Todoist Sync component."""
 
 from datetime import date, datetime, timedelta
 import logging
@@ -50,16 +50,14 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         hass: HomeAssistant,
         logger: logging.Logger,
         entry: ConfigEntry,
-        api: Any,
     ) -> None:
-        """Initialize the Todoist coordinator."""
+        """Initialize the Todoist Sync coordinator."""
         super().__init__(
             hass,
             logger,
             name=DOMAIN,
             update_interval=timedelta(seconds=60),
         )
-        self.api = api
         self.entry = entry
         self._session = async_get_clientsession(hass)
         self._token = entry.data.get(CONF_TOKEN)

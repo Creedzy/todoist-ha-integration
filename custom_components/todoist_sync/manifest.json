@@ -1,0 +1,11 @@
+{
+  "domain": "todoist_sync",
+  "name": "Todoist Sync",
+  "version": "1.0.0",
+  "config_flow": true,
+  "documentation": "https://github.com/Creedzy/todoist-ha-integration",
+  "iot_class": "cloud_polling",
+  "loggers": ["custom_components.todoist_sync"],
+  "platforms": ["calendar", "todo", "sensor"],
+  "requirements": []
+}

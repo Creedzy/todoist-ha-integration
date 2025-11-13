@@ -1,4 +1,4 @@
-"""Config flow for todoist integration."""
+"""Config flow for the Todoist Sync integration."""
 from __future__ import annotations
 
 import logging
@@ -29,7 +29,7 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 
 class TodoistConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for todoist."""
+    """Handle a config flow for the Todoist Sync integration."""
 
     VERSION = 1
 
@@ -49,7 +49,7 @@ class TodoistConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="single_instance_allowed")
 
         if user_input is not None:
-            return self.async_create_entry(title="Todoist", data=user_input)
+            return self.async_create_entry(title="Todoist Sync", data=user_input)
 
         return self.async_show_form(
             step_id="user",

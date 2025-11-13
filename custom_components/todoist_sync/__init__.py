@@ -1,4 +1,4 @@
-"""The todoist integration."""
+"""The Todoist Sync integration."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
-from .api import async_get_api
 from .const import DOMAIN
 from .coordinator import TodoistDataUpdateCoordinator
 from .services import async_register_services
@@ -20,10 +19,9 @@ PLATFORMS: list[Platform] = [Platform.CALENDAR, Platform.TODO, Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up todoist from a config entry."""
+    """Set up Todoist Sync from a config entry."""
 
-    api = await async_get_api(hass, entry)
-    coordinator = TodoistDataUpdateCoordinator(hass, _LOGGER, entry, api)
+    coordinator = TodoistDataUpdateCoordinator(hass, _LOGGER, entry)
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})
@@ -45,5 +43,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the Todoist component."""
+    """Set up the Todoist Sync component."""
     return True

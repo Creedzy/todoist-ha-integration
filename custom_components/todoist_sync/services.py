@@ -1,4 +1,4 @@
-"""Services for the Todoist component."""
+"""Services for the Todoist Sync component."""
 from __future__ import annotations
 
 import logging
@@ -23,7 +23,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def async_register_services(hass: HomeAssistant) -> None:
-    """Register the services for the Todoist component."""
+    """Register the services for the Todoist Sync component."""
 
     async def async_new_task(call: ServiceCall) -> None:
         """Create a new task."""

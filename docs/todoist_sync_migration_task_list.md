@@ -1,7 +1,7 @@
 # Todoist Sync API Migration Task List
 
 ## Phase 1 – Foundation
-- [x] Establish lightweight Sync client module (`custom_components/todoist/sync_api.py`) with shared HTTP session, auth token handling, and exponential backoff helpers.
+- [x] Establish lightweight Sync client module (`custom_components/todoist_sync/sync_api.py`) with shared HTTP session, auth token handling, and exponential backoff helpers.
 - [x] Implement `sync(resource_types, sync_token)` call returning parsed models for tasks, projects, labels.
 - [x] Design UUID command helper that accepts a list of command dicts and normalises responses (success map, error list, new sync token).
 - [x] Create dataclasses for `SyncTask`, `SyncProject`, and `SyncLabel` with `from_json`/`to_dict` helpers aligned to existing coordinator consumers.
@@ -30,12 +30,11 @@
 ## Phase 5 – Testing & Tooling
 - [ ] Build unit tests for Sync client using captured API fixtures (success, rate-limited, token reset, partial failure).
 - [ ] Add integration tests or Home Assistant dev server script to simulate command + delta pipeline.
-- [ ] Instrument timing logs to compare REST vs Sync end-to-end latency.
-- [x] Instrument timing logs to compare REST vs Sync end-to-end latency.
+- [x] Instrument timing logs to capture delta vs. mutation latency.
 - [ ] Document manual testing checklist (complete/reopen/add/delete tasks, multi-account scenario placeholder).
 
 ## Phase 6 – Documentation & Rollout
-- [ ] Update `README.md` and `docs/` to describe Sync requirements and behaviour differences.
+- [x] Update `README.md` and `docs/` to describe Sync requirements and behaviour differences.
 - [ ] Provide migration notes for existing users (no action expected, fallback env var/option to revert to REST).
 - [ ] Add config option or experimental flag to toggle Sync until GA.
 - [ ] Monitor logs post-deployment; prepare rollback plan if Sync endpoints degrade.

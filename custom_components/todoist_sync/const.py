@@ -1,4 +1,4 @@
-"""Constants for the Todoist component."""
+"""Constants for the Todoist Sync component."""
 
 from typing import Final
 
@@ -93,7 +93,7 @@ ASSIGNEE: Final = "assignee"
 # Todoist API: Collaborators in shared projects
 COLLABORATORS: Final = "collaborators"
 
-DOMAIN: Final = "todoist"
+DOMAIN: Final = "todoist_sync"
 
 SERVICE_NEW_TASK: Final = "new_task"
 SERVICE_UPDATE_TASK: Final = "update_task"
