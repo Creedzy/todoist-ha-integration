@@ -2,6 +2,8 @@
 
 This is a custom component for Home Assistant that integrates with [Todoist](https://todoist.com). It replaces the legacy REST-based integration with a Sync API implementation that keeps entities up-to-date with deltas, supports command batching, and exposes detailed timing telemetry.
 
+If you're building a full chore-tracking experience, this integration works out-of-the-box with the [Todoist Choreboard add-on](https://github.com/Creedzy/Todoist-ha-chore-ui). Pairing them lets you surface Todoist tasks in the companion UI while relying on this integration for data access and automation hooks inside Home Assistant.
+
 ## Installation
 
 ### HACS

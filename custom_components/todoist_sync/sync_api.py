@@ -85,7 +85,7 @@ class SyncTask:
     description: str | None
     is_completed: bool
     parent_id: str | None
-    label_ids: tuple[str, ...]
+    labels: tuple[str, ...]
     priority: int | None
     order: int | None
     due: SyncDue | None
@@ -95,8 +95,15 @@ class SyncTask:
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> SyncTask:
         due = SyncDue.from_json(data.get("due"))
-        label_ids_raw = data.get("label_ids") or []
-        label_ids: tuple[str, ...] = tuple(str(value) for value in label_ids_raw if value is not None)
+        labels_raw = data.get("labels") or []
+        if not labels_raw:
+            # Older payloads may expose only label_ids; use them as-is if names are absent.
+            labels_raw = data.get("label_ids") or []
+        labels: tuple[str, ...] = tuple(
+            str(value).strip()
+            for value in labels_raw
+            if value is not None and str(value).strip()
+        )
         checked = data.get("checked")
         completed = data.get("completed")
         is_completed = bool(completed) or bool(checked)
@@ -107,7 +114,7 @@ class SyncTask:
             description=data.get("description"),
             is_completed=is_completed,
             parent_id=str(data["parent_id"]) if data.get("parent_id") is not None else None,
-            label_ids=label_ids,
+            labels=labels,
             priority=int(data["priority"]) if data.get("priority") is not None else None,
             order=int(data["item_order"]) if data.get("item_order") is not None else None,
             due=due,
@@ -123,7 +130,7 @@ class SyncTask:
             "description": self.description,
             "is_completed": self.is_completed,
             "parent_id": self.parent_id,
-            "label_ids": list(self.label_ids),
+            "labels": list(self.labels),
             "priority": self.priority,
             "order": self.order,
             "due": self.due.to_dict() if self.due else None,

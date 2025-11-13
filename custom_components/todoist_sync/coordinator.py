@@ -444,8 +444,18 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
                 args[key] = str(value)
                 continue
 
-            if key == "label_ids":
-                args[key] = [str(label) for label in value]
+            if key in {"labels", "label_ids"}:
+                iterable: Iterable[Any]
+                if isinstance(value, (list, tuple, set)):
+                    iterable = value
+                else:
+                    iterable = (value,)
+                normalised_labels = [
+                    str(label).strip()
+                    for label in iterable
+                    if label is not None and str(label).strip()
+                ]
+                args["labels"] = normalised_labels
                 continue
 
             if key == "priority":
@@ -607,10 +617,14 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
                 is_recurring=getattr(due_obj, "is_recurring", None),
             )
 
-        labels_raw = getattr(task, "label_ids", None)
+        labels_raw = getattr(task, "labels", None)
         if labels_raw is None:
-            labels_raw = getattr(task, "labels", None)
-        label_ids = tuple(str(label) for label in (labels_raw or []))
+            labels_raw = getattr(task, "label_ids", None)
+        labels = tuple(
+            str(label).strip()
+            for label in (labels_raw or [])
+            if label is not None and str(label).strip()
+        )
 
         priority = getattr(task, "priority", None)
         try:
@@ -640,7 +654,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
             description=getattr(task, "description", None),
             is_completed=bool(is_completed),
             parent_id=str(parent_id) if parent_id is not None else None,
-            label_ids=label_ids,
+            labels=labels,
             priority=priority,
             order=order,
             due=due,
