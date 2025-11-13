@@ -262,11 +262,17 @@ class TodoistTodoListEntity(
         started = time.perf_counter()
         payload = {**_task_api_data(item), "project_id": self._project_id}
         self._log_debug("Creating Todoist task", payload=payload)
-        try:
-            await self.coordinator.async_add_task(payload)
-        finally:
-            self._log_timing("async_create_todo_item", started, project_id=self._project_id)
-        self._schedule_full_refresh()
+        result_task = await self.coordinator.async_add_task(payload)
+        transport = "sync"
+        if result_task is None:
+            transport = "sync-fallback"
+            self._schedule_full_refresh()
+        self._log_timing(
+            "async_create_todo_item",
+            started,
+            project_id=self._project_id,
+            transport=transport,
+        )
 
     async def async_update_todo_item(self, item: TodoItem) -> None:
         """Update a To-do item."""
@@ -284,43 +290,58 @@ class TodoistTodoListEntity(
             payload=payload,
         )
 
+        update_payload = payload if needs_update else {}
+
+        def _command_updated_task(result: Any | None) -> bool:
+            return bool(
+                result
+                and getattr(result, "sync", None)
+                and any(getattr(task, "id", None) == uid for task in result.sync.tasks)
+            )
+
         if status == TodoItemStatus.COMPLETED:
-            if needs_update:
-                await self.coordinator.async_update_task(uid, payload, refresh=False)
-            await self.coordinator.async_close_task(uid, refresh=False)
-            self._schedule_task_refresh(uid)
+            result = await self.coordinator.async_update_task(uid, update_payload, close=True)
+            fallback = not _command_updated_task(result)
+            if fallback:
+                self._schedule_task_refresh(uid)
             self._log_timing(
                 "async_update_todo_item",
                 started,
                 uid=uid,
                 status="completed",
                 updated=needs_update,
+                transport="sync" if not fallback else "sync-fallback",
             )
             return
 
         if status == TodoItemStatus.NEEDS_ACTION:
-            if needs_update:
-                await self.coordinator.async_update_task(uid, payload, refresh=False)
-            await self.coordinator.async_reopen_task(uid, refresh=False)
-            self._schedule_task_refresh(uid)
+            result = await self.coordinator.async_update_task(uid, update_payload, reopen=True)
+            fallback = not _command_updated_task(result)
+            if fallback:
+                self._schedule_task_refresh(uid)
             self._log_timing(
                 "async_update_todo_item",
                 started,
                 uid=uid,
                 status="reopened",
                 updated=needs_update,
+                transport="sync" if not fallback else "sync-fallback",
             )
             return
 
-        if needs_update:
-            await self.coordinator.async_update_task(uid, payload, refresh=False)
-        self._schedule_task_refresh(uid)
+        transport = "sync"
+        if update_payload:
+            result = await self.coordinator.async_update_task(uid, update_payload)
+            if not _command_updated_task(result):
+                transport = "sync-fallback"
+                self._schedule_task_refresh(uid)
         self._log_timing(
             "async_update_todo_item",
             started,
             uid=uid,
             status="needs_action",
             updated=needs_update,
+            transport=transport,
         )
 
     async def async_delete_todo_items(self, uids: list[str]) -> None:
@@ -335,7 +356,12 @@ class TodoistTodoListEntity(
             await self.coordinator.async_delete_task(uid, refresh=False)
         await self.coordinator.async_delete_task(final, refresh=False)
         self._schedule_full_refresh()
-        self._log_timing("async_delete_todo_items", started, count=len(uids))
+        self._log_timing(
+            "async_delete_todo_items",
+            started,
+            count=len(uids),
+            transport="sync",
+        )
 
     def _schedule_task_refresh(self, task_id: str) -> None:
         """Refresh a single task in the background."""
