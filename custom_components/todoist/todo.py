@@ -1,6 +1,8 @@
 """A todo platform for Todoist."""
 import asyncio
 import datetime
+import logging
+import time
 from typing import Any, cast
 
 from homeassistant.components.todo import (
@@ -69,6 +71,9 @@ def _parse_due_date(due_obj: Any) -> datetime.date | None:
 from .const import DOMAIN
 from .coordinator import TodoistDataUpdateCoordinator
 from .types import TodoistData
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _payload_requires_update(task: Any | None, payload: dict[str, Any]) -> bool:
@@ -170,10 +175,27 @@ class TodoistTodoListEntity(
         self._attr_unique_id = f"{coordinator.entry.entry_id}-{project_id}"
         self._attr_name = project_name
 
+    def _log_timing(self, label: str, started: float, **context: Any) -> None:
+        """Log the elapsed time for a given label."""
+
+        elapsed = (time.perf_counter() - started) * 1000
+        context_items = [f"{key}={value}" for key, value in context.items() if value is not None]
+        suffix = f" ({', '.join(context_items)})" if context_items else ""
+        _LOGGER.info("[TodoEntity:%s] %s in %.2f ms%s", self._attr_name, label, elapsed, suffix)
+
+    def _log_debug(self, message: str, **context: Any) -> None:
+        """Emit a structured debug log for this entity."""
+
+        context_items = {key: value for key, value in context.items() if value is not None}
+        _LOGGER.debug("[TodoEntity:%s] %s | %s", self._attr_name, message, context_items)
+
     @property
     def todo_items(self) -> list[TodoItem] | None:
         """Get the current set of To-do items."""
+        started = time.perf_counter()
+        self._log_debug("Building todo_items snapshot", project_id=self._project_id)
         if self.coordinator.data is None:
+            self._log_timing("todo_items", started, status="no-data")
             return None
         items = []
         for task in self.coordinator.data.tasks:
@@ -204,13 +226,18 @@ class TodoistTodoListEntity(
                     description=task.description,
                 )
             )
+        self._log_timing("todo_items", started, count=len(items))
         return items
 
     async def async_create_todo_item(self, item: TodoItem) -> None:
         """Create a To-do item."""
-        await self.coordinator.async_add_task(
-            {**_task_api_data(item), "project_id": self._project_id}
-        )
+        started = time.perf_counter()
+        payload = {**_task_api_data(item), "project_id": self._project_id}
+        self._log_debug("Creating Todoist task", payload=payload)
+        try:
+            await self.coordinator.async_add_task(payload)
+        finally:
+            self._log_timing("async_create_todo_item", started, project_id=self._project_id)
         self._schedule_full_refresh()
 
     async def async_update_todo_item(self, item: TodoItem) -> None:
@@ -220,12 +247,27 @@ class TodoistTodoListEntity(
         status = item.status
         cached_task = self.coordinator.get_cached_task(uid)
         needs_update = _payload_requires_update(cached_task, payload)
+        started = time.perf_counter()
+        self._log_debug(
+            "Updating Todoist task",
+            uid=uid,
+            status=status,
+            needs_update=needs_update,
+            payload=payload,
+        )
 
         if status == TodoItemStatus.COMPLETED:
             if needs_update:
                 await self.coordinator.async_update_task(uid, payload, refresh=False)
             await self.coordinator.async_close_task(uid, refresh=False)
             self._schedule_task_refresh(uid)
+            self._log_timing(
+                "async_update_todo_item",
+                started,
+                uid=uid,
+                status="completed",
+                updated=needs_update,
+            )
             return
 
         if status == TodoItemStatus.NEEDS_ACTION:
@@ -233,22 +275,39 @@ class TodoistTodoListEntity(
                 await self.coordinator.async_update_task(uid, payload, refresh=False)
             await self.coordinator.async_reopen_task(uid, refresh=False)
             self._schedule_task_refresh(uid)
+            self._log_timing(
+                "async_update_todo_item",
+                started,
+                uid=uid,
+                status="reopened",
+                updated=needs_update,
+            )
             return
 
         if needs_update:
             await self.coordinator.async_update_task(uid, payload, refresh=False)
         self._schedule_task_refresh(uid)
+        self._log_timing(
+            "async_update_todo_item",
+            started,
+            uid=uid,
+            status="needs_action",
+            updated=needs_update,
+        )
 
     async def async_delete_todo_items(self, uids: list[str]) -> None:
         """Delete a To-do item."""
         if not uids:
             return
 
+        started = time.perf_counter()
+        self._log_debug("Deleting Todoist tasks", uids=uids)
         *leading, final = uids
         for uid in leading:
             await self.coordinator.async_delete_task(uid, refresh=False)
         await self.coordinator.async_delete_task(final, refresh=False)
         self._schedule_full_refresh()
+        self._log_timing("async_delete_todo_items", started, count=len(uids))
 
     def _schedule_task_refresh(self, task_id: str) -> None:
         """Refresh a single task in the background."""

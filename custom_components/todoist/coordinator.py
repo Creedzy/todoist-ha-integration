@@ -3,6 +3,7 @@
 import asyncio
 from datetime import date, datetime, timedelta
 import logging
+import time
 from typing import Any
 
 from aiohttp import ClientError
@@ -57,8 +58,18 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         self._token = entry.data.get(CONF_TOKEN)
         self._task_lookup: dict[str, Any] = {}
 
+    def _log_timing(self, operation: str, started: float, **context: Any) -> None:
+        """Emit a timing message for coordinator operations."""
+
+        elapsed = (time.perf_counter() - started) * 1000
+        extras = [f"{key}={value}" for key, value in context.items() if value is not None]
+        suffix = f" ({', '.join(extras)})" if extras else ""
+        self.logger.info("[TodoistCoordinator] %s in %.2f ms%s", operation, elapsed, suffix)
+
     async def _async_update_data(self) -> TodoistData:
         """Fetch data from the Todoist API."""
+        started = time.perf_counter()
+        task_count = project_count = label_count = 0
         today = date.today()
         three_months_ago = today - timedelta(days=90)
         try:
@@ -91,33 +102,50 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
                 key = _task_key(task)
                 if key is not None:
                     self._task_lookup[key] = task
+            task_count = len(all_tasks)
+            project_list = [project async for page in projects for project in page]
+            label_list = [label async for page in labels for label in page]
+            project_count = len(project_list)
+            label_count = len(label_list)
             return TodoistData(
                 tasks=all_tasks,
-                projects=[project async for page in projects for project in page],
-                labels=[label async for page in labels for label in page],
+                projects=project_list,
+                labels=label_list,
                 last_update=dt_util.utcnow().timestamp(),
             )
         except Exception as err:
             self.logger.error("Error communicating with API: %s", err)
             raise UpdateFailed(f"Error communicating with API: {err}") from err
+        finally:
+            self._log_timing(
+                "_async_update_data",
+                started,
+                tasks=task_count,
+                projects=project_count,
+                labels=label_count,
+            )
 
     async def async_add_task(self, data: dict, *, refresh: bool = True) -> Any:
         """Add a task."""
+        started = time.perf_counter()
         task = await self.api.add_task(**data)
         key = _task_key(task)
         if key is not None:
             self._task_lookup[key] = task
         if refresh:
             await self.async_refresh()
+        self._log_timing("async_add_task", started, refresh=refresh, task_id=_task_key(task))
         return task
 
     async def async_update_task(self, task_id: str, data: dict, *, refresh: bool = True) -> bool:
         """Update a task."""
+        started = time.perf_counter()
         sanitized = {key: value for key, value in data.items() if key != "task_id"}
         result = await self.api.update_task(task_id, **sanitized)
         self._task_lookup.pop(str(task_id), None)
         if refresh:
             await self.async_refresh()
+        self._log_timing("async_update_task", started, refresh=refresh, task_id=task_id)
         return result
 
     async def _async_task_action(self, task_id: str, action: str) -> None:
@@ -144,6 +172,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
 
     async def async_close_task(self, task_id: str, *, refresh: bool = True) -> bool:
         """Close a task."""
+        started = time.perf_counter()
         close_fn = getattr(self.api, "close_task", None)
         if callable(close_fn):
             result = await close_fn(task_id)
@@ -153,10 +182,12 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         self._task_lookup.pop(str(task_id), None)
         if refresh:
             await self.async_refresh()
+        self._log_timing("async_close_task", started, refresh=refresh, task_id=task_id)
         return result
 
     async def async_reopen_task(self, task_id: str, *, refresh: bool = True) -> bool:
         """Reopen a task."""
+        started = time.perf_counter()
         reopen_fn = getattr(self.api, "reopen_task", None)
         if callable(reopen_fn):
             result = await reopen_fn(task_id)
@@ -166,18 +197,22 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         self._task_lookup.pop(str(task_id), None)
         if refresh:
             await self.async_refresh()
+        self._log_timing("async_reopen_task", started, refresh=refresh, task_id=task_id)
         return result
 
     async def async_delete_task(self, task_id: str, *, refresh: bool = True) -> bool:
         """Delete a task."""
+        started = time.perf_counter()
         result = await self.api.delete_task(task_id)
         self._task_lookup.pop(str(task_id), None)
         if refresh:
             await self.async_refresh()
+        self._log_timing("async_delete_task", started, refresh=refresh, task_id=task_id)
         return result
 
     async def async_refresh_task(self, task_id: str) -> None:
         """Fetch a single task and update local state."""
+        started = time.perf_counter()
         try:
             task = await self.api.get_task(task_id)
         except Exception as err:  # broad except: Todoist SDK raises many types
@@ -212,6 +247,7 @@ class TodoistDataUpdateCoordinator(DataUpdateCoordinator[TodoistData]):
         else:
             self._task_lookup[key] = task
             await self.async_refresh()
+        self._log_timing("async_refresh_task", started, task_id=task_id, cache_hit=existing is not None)
 
     def get_cached_task(self, task_id: str) -> Any | None:
         """Return the cached Todoist task, if available."""
