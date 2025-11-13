@@ -404,7 +404,7 @@ class TodoistSyncClient:
                     )
                     await asyncio.sleep(delay)
                     delay *= 2
-    raise TodoistSyncRequestError(last_error or Exception("Sync request failed"))
+        raise TodoistSyncRequestError(last_error or Exception("Sync request failed"))
 
     def _parse_sync_response(self, response: Mapping[str, Any]) -> SyncResponse:
         """Translate the JSON response into typed objects."""
